@@ -7,8 +7,6 @@ import time
 import pickle
 import numpy as np
 
-dict = {}
-np.save('../../../dlabdata1/youtube_large/jouven/simple_graph.npy', dict) 
 
 channelcrawler = pd.read_csv("/dlabdata1/youtube_large/channelcrawler.csv")
 channelcrawler['channel_id'] = channelcrawler['link'].str.split('/').str[-1]
@@ -97,3 +95,5 @@ for line in reader.readlines():
     if idx % 100000000 == 0:
         print('line number: ' + str(idx) + ' time: ' + str(time.time() - begin_time))
         begin_time = time.time()
+
+np.save('../../../dlabdata1/youtube_large/jouven/simple_graph.npy', graph_dict) 
