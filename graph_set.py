@@ -46,7 +46,7 @@ class Zreader:
             self.buffer = lines[-1]
 
 def add_edge(graph_dict, user_edge):
-    if graph_dict.get(user_edge) is not None:
+    if graph_dict.get(user_edge) is None:
         graph_dict[user_edge] = 1
     else:
         graph_dict[user_edge] += 1
@@ -96,4 +96,4 @@ for line in reader.readlines():
         print('line number: ' + str(idx) + ' time: ' + str(time.time() - begin_time))
         begin_time = time.time()
 
-np.save('../../../dlabdata1/youtube_large/jouven/simple_graph.npy', graph_dict) 
+np.save('../../../dlabdata1/youtube_large/jouven/simple_graph.npy', graph_dict)
