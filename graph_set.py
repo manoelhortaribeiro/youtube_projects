@@ -5,7 +5,10 @@ import json
 import queue
 import time
 import pickle
+import numpy as np
 
+dict = {}
+np.save('../../../dlabdata1/youtube_large/jouven/simple_graph.npy', dict) 
 
 channelcrawler = pd.read_csv("/dlabdata1/youtube_large/channelcrawler.csv")
 channelcrawler['channel_id'] = channelcrawler['link'].str.split('/').str[-1]
@@ -50,6 +53,8 @@ def add_edge(graph_dict, user_edge):
     else:
         graph_dict[user_edge] += 1
 
+
+graph_dict = {}
 # Adjust chunk_size as necessary -- defaults to 16,384 if not specific
 reader = Zreader("/dlabdata1/youtube_large/youtube_comments.ndjson.zst", chunk_size=16384)
 
@@ -78,11 +83,11 @@ for line in reader.readlines():
                         user_edge.put(corr_channel)
 
                         if len(user_edge.queue) == 2:
-                            add_edge(graph, tuple(user_edge.queue))
+                            add_edge(graph_dict, tuple(user_edge.queue))
                             #print(user_edge.queue)
                         elif len(user_edge.queue) == 3:
                             user_edge.get()
-                            add_edge(graph, tuple(user_edge.queue))
+                            add_edge(graph_dict, tuple(user_edge.queue))
                             #print(user_edge.queue)
                     else:
                         user_edge = queue.Queue(maxsize=0)
@@ -92,4 +97,3 @@ for line in reader.readlines():
     if idx % 100000000 == 0:
         print('line number: ' + str(idx) + ' time: ' + str(time.time() - begin_time))
         begin_time = time.time()
-nx.write_gpickle(graph, "simple_graph.gpickle")
