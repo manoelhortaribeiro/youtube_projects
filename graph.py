@@ -5,6 +5,8 @@ import json
 import queue
 import time
 import pickle
+import gzip
+
 
 channelcrawler = pd.read_csv("/dlabdata1/youtube_large/channelcrawler.csv")
 channelcrawler['channel_id'] = channelcrawler['link'].str.split('/').str[-1]
@@ -19,6 +21,7 @@ vid_to_channels = pd.read_pickle("/dlabdata1/youtube_large/id_to_channel_mapping
 set_channels = set(vid_to_channels.values())
 
 set_videos = set(vid_to_channels.keys())
+
 
 class Zreader:
 
@@ -43,25 +46,11 @@ class Zreader:
 
             self.buffer = lines[-1]
 
-'''
-Initialize the graph
-'''
-def initialize_graph():
-    graph = nx.DiGraph()
-    graph.add_nodes_from(set_channelcrawler)
-    return graph
+outfilename = '../../../dlabdata1/youtube_large/jouven/simple_graph.txt.zst'
+output = gzip.open(outfilename, 'w')
+output = gzip.open(outfilename, 'a')
 
-
-def add_edge(graph, user_edge):
-    source = user_edge[0]
-    dest = user_edge[1]
-    if graph.has_edge(*user_edge):
-        graph[source][dest]['weight'] += 1
-    else:
-        graph.add_edge(source, dest, weight=1)
-
-
-graph = initialize_graph()
+graph_dict = {}
 
 # Adjust chunk_size as necessary -- defaults to 16,384 if not specific
 reader = Zreader("/dlabdata1/youtube_large/youtube_comments.ndjson.zst", chunk_size=16384)
@@ -91,18 +80,18 @@ for line in reader.readlines():
                         user_edge.put(corr_channel)
 
                         if len(user_edge.queue) == 2:
-                            add_edge(graph, tuple(user_edge.queue))
+                            output.write((str(tuple(user_edge.queue))+'\n').encode('utf-8'))
                             #print(user_edge.queue)
                         elif len(user_edge.queue) == 3:
                             user_edge.get()
-                            add_edge(graph, tuple(user_edge.queue))
+                            output.write((str(tuple(user_edge.queue))+'\n').encode('utf-8'))
                             #print(user_edge.queue)
                     else:
                         user_edge = queue.Queue(maxsize=0)
                         user_edge.put(corr_channel)
                         user = line_split[0]
+
     idx += 1
     if idx % 100000000 == 0:
         print('line number: ' + str(idx) + ' time: ' + str(time.time() - begin_time))
         begin_time = time.time()
-nx.write_gpickle(graph, "simple_graph.gpickle")
