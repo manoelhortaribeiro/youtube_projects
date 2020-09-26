@@ -6,6 +6,7 @@ import queue
 import time
 import pickle
 import numpy as np
+import gzip
 
 
 channelcrawler = pd.read_csv("/dlabdata1/youtube_large/channelcrawler.csv")
@@ -81,11 +82,11 @@ for line in reader.readlines():
                         user_edge.put(corr_channel)
 
                         if len(user_edge.queue) == 2:
-                            add_edge(graph_dict, tuple(user_edge.queue))
+                            add_edge(graph_dict, str(tuple(user_edge.queue)))
                             #print(user_edge.queue)
                         elif len(user_edge.queue) == 3:
                             user_edge.get()
-                            add_edge(graph_dict, tuple(user_edge.queue))
+                            add_edge(graph_dict, str(tuple(user_edge.queue)))
                             #print(user_edge.queue)
                     else:
                         user_edge = queue.Queue(maxsize=0)
@@ -96,4 +97,7 @@ for line in reader.readlines():
         print('line number: ' + str(idx) + ' time: ' + str(time.time() - begin_time))
         begin_time = time.time()
 
-np.save('../../../dlabdata1/youtube_large/jouven/simple_graph.npy', graph_dict)
+outfilename = '../../../dlabdata1/youtube_large/jouven/simple_graph_set.json.gz'
+output = gzip.open(outfilename, 'w')
+output.write((str(graph_dict)).encode('utf-8'))
+output.close()
