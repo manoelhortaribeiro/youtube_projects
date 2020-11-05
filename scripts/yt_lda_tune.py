@@ -18,7 +18,7 @@ def main():
     spark = SparkSession.builder.appName("LDA_topicmodelling").config(conf=conf).getOrCreate()
 
     # Load data
-    n_topics_list = [40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120]
+    n_topics_list = [100, 105, 110, 115, 120, 125, 130]
     max_iter = 1000
     vocabSize = 42757
 
