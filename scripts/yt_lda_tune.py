@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 import pickle
 import random
@@ -13,23 +14,29 @@ from pyspark.ml.linalg import Vectors, SparseVector
 def main():
     conf = SparkConf()
 
+    print('Using bigrams: ' + str(use_bigram))
+
+    if use_bigram:
+        path_data = '/user/olam/with_bigram/'
+        vocabSize = 97888
+    else:
+        path_data = '/user/olam/final_res/'
+        vocabSize = 53255
+
     # create the session
     spark = SparkSession.builder.appName(
         "LDA_topicmodelling").config(conf=conf).getOrCreate()
 
     # Load data
-    n_topics_list = [50, 55, 60, 65, 70, 75, 80, 85, 90, 95,
-                     100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150]
+    n_topics_list = [50, 55, 60, 65, 70]
 
-    max_iter = 500
-    vocabSize = 53255
+    max_iter = 1000
 
     print('Initializing... Tuning the number of topics with ' +
-          str(max_iter) + ' iters')
+          str(max_iter) + ' iters...')
 
     print('Loading data...')
-    df_load_view10000_sub100000 = spark.read.json(
-        '/user/olam/final_res/sparkdf.json')
+    df_load_view10000_sub100000 = spark.read.json(path_data + 'sparkdf.json')
 
     # Process data
     data_view10000_sub100000 = []
@@ -55,19 +62,27 @@ def main():
 
         model_view10000_sub100000.describeTopics(maxTermsPerTopic=vocabSize).write\
             .option('compression', 'gzip')\
-            .json('/user/olam/final_res/describe_topics_' + str(n_topics) + '.json')
+            .json(path_data + 'describe_topics_' + str(n_topics) + '.json')
 
         model_view10000_sub100000.transform(df_view10000_sub100000).write\
             .option('compression', 'gzip')\
-            .json('/user/olam/final_res/topics_doc_matrix_' + str(n_topics) + 'json')
+            .json(path_data + 'topics_doc_matrix_' + str(n_topics) + 'json')
 
         print('Save the model...')
 
-        model_view10000_sub100000.save(
-            '/user/olam/final_res/model_' + str(n_topics))
+        model_view10000_sub100000.save(path_data + 'model_' + str(n_topics))
 
     print('Task done!')
 
 
 if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description='LDA Tune')
+    parser.add_argument('--use_bigram', dest='use_bigram',
+                        default=False, action='store_true')
+
+    args = parser.parse_args()
+
+    use_bigram = args.use_bigram
+
     main()

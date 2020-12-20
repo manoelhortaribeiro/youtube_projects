@@ -23,10 +23,8 @@ def main():
 
     # Load data
     alphas = [0.1, 0.5, 0.9, 0.95, 1]
-    n_topic = 55
     max_iter = 500
     vocabSize = 53255
-    n_topics = 55
 
     print('Loading data...')
     df_load = spark.read.json(
@@ -76,10 +74,12 @@ def main():
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Topic Concentration')
+    parser.add_argument('--ntopic', dest='ntopic', type=int)
     parser.add_argument('--beta', dest='beta', type=float)
 
     args = parser.parse_args()
 
+    n_topics = args.ntopic
     beta = args.beta
 
     main()
