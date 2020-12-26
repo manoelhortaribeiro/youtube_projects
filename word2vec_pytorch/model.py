@@ -1,73 +1,81 @@
-import numpy as np
-import torch as t
+from __future__ import print_function
+import torch, sys, pdb
+from utils_modified import q
+
+#import torch.autograd as autograd
 import torch.nn as nn
+import torch.nn.functional as F
+#import torch.optim as optim
 
-from torch import LongTensor as LT
-from torch import FloatTensor as FT
+class Word2Vec_neg_sampling(nn.Module):
 
+    def __init__(self, embedding_size, vocab_size, device, noise_dist = None, negative_samples = 10):
+        super(Word2Vec_neg_sampling, self).__init__()
 
-class Bundler(nn.Module):
-
-    def forward(self, data):
-        raise NotImplementedError
-
-    def forward_i(self, data):
-        raise NotImplementedError
-
-    def forward_o(self, data):
-        raise NotImplementedError
-
-
-class Word2Vec(Bundler):
-
-    def __init__(self, vocab_size=20000, embedding_size=300, padding_idx=0):
-        super(Word2Vec, self).__init__()
+        self.embeddings_input = nn.Embedding(vocab_size, embedding_size)
+        self.embeddings_context = nn.Embedding(vocab_size, embedding_size)
         self.vocab_size = vocab_size
-        self.embedding_size = embedding_size
-        self.ivectors = nn.Embedding(self.vocab_size, self.embedding_size, padding_idx=padding_idx)
-        self.ovectors = nn.Embedding(self.vocab_size, self.embedding_size, padding_idx=padding_idx)
-        self.ivectors.weight = nn.Parameter(t.cat([t.zeros(1, self.embedding_size), FT(self.vocab_size - 1, self.embedding_size).uniform_(-0.5 / self.embedding_size, 0.5 / self.embedding_size)]))
-        self.ovectors.weight = nn.Parameter(t.cat([t.zeros(1, self.embedding_size), FT(self.vocab_size - 1, self.embedding_size).uniform_(-0.5 / self.embedding_size, 0.5 / self.embedding_size)]))
-        self.ivectors.weight.requires_grad = True
-        self.ovectors.weight.requires_grad = True
+        self.negative_samples = negative_samples
+        self.device = device
+        self.noise_dist = noise_dist
 
-    def forward(self, data):
-        return self.forward_i(data)
+        # Initialize both embedding tables with uniform distribution
+        self.embeddings_input.weight.data.uniform_(-1,1)
+        self.embeddings_context.weight.data.uniform_(-1,1)
 
-    def forward_i(self, data):
-        v = LT(data)
-        v = v.cuda() if self.ivectors.weight.is_cuda else v
-        return self.ivectors(v)
+    def forward(self, input_word, context_word):
+        debug =  not True
+        if debug:
+            print('input_word.shape: ', input_word.shape)        # bs
+            print('context_word.shape: ', context_word.shape)    # bs
 
-    def forward_o(self, data):
-        v = LT(data)
-        v = v.cuda() if self.ovectors.weight.is_cuda else v
-        return self.ovectors(v)
+        # computing out loss
+        emb_input = self.embeddings_input(input_word)     # bs, emb_dim
+        if debug:print('emb_input.shape: ', emb_input.shape)    
+
+        emb_context = self.embeddings_context(context_word)  # bs, emb_dim
+        if debug:print('emb_context.shape: ', emb_context.shape)
+
+        emb_product = torch.mul(emb_input, emb_context)     # bs, emb_dim
+        if debug:print('emb_product.shape: ', emb_product.shape)
+        
+        emb_product = torch.sum(emb_product, dim=1)          # bs
+        if debug:print('emb_product.shape: ', emb_product.shape)
+
+        out_loss = F.logsigmoid(emb_product)                      # bs
+        if debug:print('out_loss.shape: ', out_loss.shape)
 
 
-class SGNS(nn.Module):
+        if self.negative_samples > 0:
+            # computing negative loss
+            if self.noise_dist is None:
+                noise_dist = torch.ones(self.vocab_size)  
+            else:
+                noise_dist = self.noise_dist
 
-    def __init__(self, embedding, vocab_size=20000, n_negs=20, weights=None):
-        super(SGNS, self).__init__()
-        self.embedding = embedding
-        self.vocab_size = vocab_size
-        self.n_negs = n_negs
-        self.weights = None
-        if weights is not None:
-            wf = np.power(weights, 0.75)
-            wf = wf / wf.sum()
-            self.weights = FT(wf)
+            if debug:print('noise_dist.shape: ', noise_dist.shape)
+            
+            num_neg_samples_for_this_batch = context_word.shape[0]*self.negative_samples
+            negative_example = torch.multinomial(noise_dist, num_neg_samples_for_this_batch, replacement = True) # coz bs*num_neg_samples > vocab_size
+            if debug:print('negative_example.shape: ', negative_example.shape)
 
-    def forward(self, iword, owords):
-        batch_size = iword.size()[0]
-        context_size = owords.size()[1]
-        if self.weights is not None:
-            nwords = t.multinomial(self.weights, batch_size * context_size * self.n_negs, replacement=True).view(batch_size, -1)
+            negative_example = negative_example.view(context_word.shape[0], self.negative_samples).to(self.device) # bs, num_neg_samples
+            if debug:print('negative_example.shape: ', negative_example.shape)
+
+            emb_negative = self.embeddings_context(negative_example) # bs, neg_samples, emb_dim
+            if debug:print('emb_negative.shape: ', emb_negative.shape)
+
+            if debug:print('emb_input.unsqueeze(2).shape: ', emb_input.unsqueeze(2).shape) # bs, emb_dim, 1
+            emb_product_neg_samples = torch.bmm(emb_negative.neg(), emb_input.unsqueeze(2)) # bs, neg_samples, 1
+            if debug:print('emb_product_neg_samples.shape: ', emb_product_neg_samples.shape)
+
+            noise_loss = F.logsigmoid(emb_product_neg_samples).squeeze(2).sum(1) # bs
+            if debug:print('noise_loss.shape: ', noise_loss.shape)
+
+            total_loss = -(out_loss + noise_loss).mean()
+            if debug:print('total_loss.shape: ', total_loss.shape)
+
+            return total_loss
+
         else:
-            nwords = FT(batch_size, context_size * self.n_negs).uniform_(0, self.vocab_size - 1).long()
-        ivectors = self.embedding.forward_i(iword).unsqueeze(2)
-        ovectors = self.embedding.forward_o(owords)
-        nvectors = self.embedding.forward_o(nwords).neg()
-        oloss = t.bmm(ovectors, ivectors).squeeze().sigmoid().log().mean(1)
-        nloss = t.bmm(nvectors, ivectors).squeeze().sigmoid().log().view(-1, context_size, self.n_negs).sum(2).mean(1)
-        return -(oloss + nloss).mean()
+            return -(out_loss).mean()
