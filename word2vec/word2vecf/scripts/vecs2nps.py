@@ -18,3 +18,4 @@ for i,line in enumerate(fh):
     wvecs[i,] = np.array(line[1:]).astype(float)
 
 np.save(foutname+".npy",wvecs)
+np.save(foutname+"index_ordering.npy", np.array(vocab))

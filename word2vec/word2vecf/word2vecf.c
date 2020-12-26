@@ -316,11 +316,15 @@ void TrainModel() {
   wv = ReadVocab(wvocab_file);
   cv = ReadVocab(cvocab_file);
   InitNet(wv, cv);
+  printf("after InitNet");
   InitUnigramTable(cv);
+  printf("after InitUnigram");
   start = clock();
   for (a = 0; a < num_threads; a++) pthread_create(&pt[a], NULL, TrainModelThread, (void *)a);
+  printf("after first for");
   for (a = 0; a < num_threads; a++) pthread_join(pt[a], NULL);
   fo = fopen(output_file, "wb");
+  printf("after output");
   if (classes == 0) {
     // Save the word vectors
     if (dumpcv_file[0] != 0) {

@@ -203,13 +203,15 @@ struct vocabulary *ReadVocab(char *vocabfile) {
     exit(1);
   }
   struct vocabulary *v = CreateVocabulary();
-  while (1) {
+  while (1) {  
     ReadWord(word, fin, MAX_STRING);
     if (feof(fin)) break;
     a = AddWordToVocab(v, word);
     fscanf(fin, "%lld%c", &v->vocab[a].cn, &c);
     i++;
+    if (i % 10000000 == 0) printf("i: %d\n", i);
   }
+  printf("haha");
   SortAndReduceVocab(v, 0);
   printf("Vocab size: %d\n", v->vocab_size);
   printf("Word count: %lld\n", v->word_count);
