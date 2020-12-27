@@ -398,11 +398,6 @@ def get_document_term_matrix(path_dataset, path_write_data, set_relevant_vid, wo
                 # Increase i_vid
                 i_vid += 1
 
-            if i % 10000000 == 0 and i != 0:
-                print('Processed ' + str(i) + ' videos...')
-
-            i += 1
-
     # Save last sparse matrix
     S = S.tocsr()
     scipy.sparse.save_npz(path_write_data + 'matrices/S_last.npz', S)
