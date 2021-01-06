@@ -31,7 +31,11 @@ class Zreader:
 
             self.buffer = lines[-1]
 
-            
+'''
+Check if the directory dir_1 exists. If no then create it.
+PARAMETERS:
+    - dir_1: the directory path to be checked
+'''
 def check_directory(dir_1):
     
     if not os.path.exists(dir_1): 

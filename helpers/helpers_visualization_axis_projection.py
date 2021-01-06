@@ -1,4 +1,6 @@
-
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
 
 def compute_projection(axis_vector, channel_vector):
     return np.dot(axis_vector, channel_vector)
@@ -33,14 +35,14 @@ def visualization(df_gender_projection, seed_name, color, nb_for_color, title):
     plt.show()
     
     
-def create_projection(EMBEDDING, axis_vector):
+def create_projection(EMBEDDING, axis_vector, dict_idx_name):
     df_projection = pd.DataFrame({'name': EMBEDDING.apply(lambda row: dict_idx_name[row.name], axis = 1)})
     df_projection['projection'] = EMBEDDING.apply(lambda channel_vector: compute_projection(axis_vector, channel_vector), axis = 1)
     return df_projection
 
 
 
-def create_plot(df_left, df_right, selected_pairs, title, size, resize = 1):
+def create_plot(df_left, df_right, selected_pairs, title, size, cm, resize = 1):
     fig, ax = plt.subplots(figsize = size)
     ax.axis('off')
     X = np.arange(selected_pairs)

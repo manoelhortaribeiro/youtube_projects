@@ -9,21 +9,16 @@ from scipy.spatial import distance
 from sklearn.metrics.pairwise import cosine_similarity
 
 '''
-Retrieve the array obtained by apllying the dimentionality reduction algorithm
+Retrieve the embedding of size (channels, _n_comp) and create a DataFrame from it.
 graph_matrix: SHAPE: (channels, n_comp)
 
 PARAMETER:
-    - file_path: the path where the embedding graph is stored
+    - model_path: the path where the embedding is stored
+    - embedding_type (optional): the technique used to create the embedding
 
 RETURN: 
-    - df: DataFrame representing the graph in the embedding space
+    - df: DataFrame representing the channels in the embedding space
 '''
-def create_dataframe_in_embedding_space_pytorch(model_path):
-    graph_matrix = torch.load(model_path)['embedding'].cpu().detach().numpy()
-    df = pd.DataFrame(graph_matrix)
-    df = df.rename(lambda x: 'dr'+str(x), axis='columns')
-    return df
-
 def get_dataframe_in_embedding_space(model_path, embedding_type = 'pytorch'):
     if embedding_type == 'pytorch':                          
         return pd.read_csv(model_path, compression='gzip')
@@ -45,14 +40,13 @@ def get_dataframe_in_embedding_space(model_path, embedding_type = 'pytorch'):
 
 
 '''
-Retrieve the array obtained by apllying the dimentinality reductin algorithm
-graph_matrix: SHAPE: (channels, n_comp)
+Build the Annoy index in order to compute afterwords the nearest neighbors
 
 PARAMETERS:
-    - df_embedding: DataFrame representing the graph in the embedding space
-    - n_comp: number of components to use after the dimentionalit reduction
+    - df: DataFrame representing the embedding space
 
-RETURN: The annoy index
+RETURN:
+    - The annoy index
 '''
 def get_annoy_index(df):
     index = AnnoyIndex(df.shape[1], "euclidean")  # Length of item vector that will be indexed
@@ -61,6 +55,18 @@ def get_annoy_index(df):
     return index
 
 
+'''
+Retrieve the k nearest neighbors of ref_index_channel using the model stored on path.
+
+PARAMETERS:
+    - path: The path where the embedding is stored
+    - ref_index_channel: the channel indice we compute the nearest neighbors on
+    - k: The number of nearest neighbors to retrieve
+    - embedding_type (optional): the technique used to create the embedding
+
+RETURN:
+    - The k nearest channels id of ref_index_channel
+'''
 def get_k_nearest_neighbors(path, ref_index_channel, dict_ind_channel, k = 20, embedding_type = 'pytorch'):
     df = get_dataframe_in_embedding_space(path, embedding_type)
     index = get_annoy_index(df)
@@ -69,7 +75,15 @@ def get_k_nearest_neighbors(path, ref_index_channel, dict_ind_channel, k = 20, e
     return nearest_neighbors_id
 
 
+'''
+Get the random walk distance computed from the random_walk_channels pairs. The random walk distance is the sum of the euclidean distance between the pairs of random_walk_channels.
 
+PARAMETERS:
+    - df_embedding: DataFrame representing the channels in the embedding space
+
+RETURN:
+    - random_walk_distance: The distance of the random walk
+'''
 def get_random_walk(df_embedding):
     with open("/dlabdata1/youtube_large/jouven/channels_more_300/channels_tuple_random_walk.pkl",'rb') as f:
          random_walk_channels = pickle.load(f)
@@ -79,6 +93,16 @@ def get_random_walk(df_embedding):
         random_walk_distance += distance.euclidean(df_embedding.iloc[val[0]], df_embedding.iloc[val[1]])
     return random_walk_distance
 
+
+'''
+Get the random walk distance computed from the random_walk_channels pairs. These pairs construction are modified compared to the one produced originaly. We construct the pairs by selecting 2 users at random and select 2 channels at random from these users.  The random walk distance is the sum of the euclidean distance between the pairs of random_walk_channels.
+
+PARAMETERS:
+    - df_embedding: DataFrame representing the channels in the embedding space
+
+RETURN:
+    - random_walk_distance: The distance of the random walk
+'''
 def get_random_walk_new(df_embedding):
     with open("/dlabdata1/youtube_large/jouven/channels_more_300/channels_tuple_random_walk_modified.pkl",'rb') as f:
          random_walk_channels = pickle.load(f)
@@ -94,11 +118,10 @@ def get_random_walk_new(df_embedding):
 Get the position of ref_channel relative to second_channel in terms of its nearest neighbors ranking.
 
 PARAMETER:
-    - ref_channel: The reference channel on which wwe compute it's k nearest neighbor
-    - second_channel: The channel where we compute it's ranking relatively to ref_channel
-    - dist: Euclidean distance between ref_channel and second_channel
+    - ref_channel: The reference channel on which we compute the k nearest neighbor
+    - second_channel: The channel on which we compute the ranking relatively to ref_channel
     - index: annoy index
-    - df_embedding: DataFrame representing the embedding space
+    - df_embedding: DataFrame representing the channels in the embedding space
 
 RETURN: The position of second_channel relatively to ref_channel in terms of it's ranking
 
@@ -112,11 +135,24 @@ def get_ranking_position_between_channels(ref_channel, second_channel, index, df
         if nearest_neighbors_index[i] == second_channel:
             return i
         
-        
+'''
+Compute the 2 versions of the Jumper ratio as well as the position ratio.
+
+PARAMETER:
+    - files: List of path where are stored the embedding
+    - channels_tuple: The pairs of channels corresponding to the user jumper channel pairs
+    - embedding_type(optional): the technique used to create the embedding
+
+RETURN: 
+    - user_jumper_tab: List of Jumper ratio corresponding the embedding contained in files
+    - user_jumper_tab_new: List of Jumper ratio (Modified version) corresponding the embedding contained in files
+    - ranking_position_tab: List of Position ratio corresponding the embedding contained in files
+
+'''
 def get_user_walk_and_position_ratio(files, channels_tuple, embedding_type = 'pytorch'):
 
-    users_walk_tab = []
-    users_walk_tab_new = []
+    user_jumper_tab = []
+    user_jumper_tab_new = []
     ranking_position_tab = []
 
     len_random_set = len(channels_tuple)
@@ -131,36 +167,46 @@ def get_user_walk_and_position_ratio(files, channels_tuple, embedding_type = 'py
         index = get_annoy_index(df_embedding)
         users_walk = 0
         ranking_position = 0
-
+        
         for ref_channel, second_channel in channels_tuple:
+            # For every pair sum the users_walk and the ranking_position results
             users_walk += distance.euclidean(df_embedding.iloc[ref_channel], df_embedding.iloc[second_channel])
             ranking_position += get_ranking_position_between_channels(ref_channel, second_channel, index, df_embedding)
 
-        users_walk_tab.append(users_walk/random_walk_distance)
-        users_walk_tab_new.append(users_walk/random_walk_distance_new)
+        user_jumper_tab.append(users_walk/random_walk_distance)
+        user_jumper_tab_new.append(users_walk/random_walk_distance_new)
         ranking_position_tab.append(ranking_position/(len_random_set*df_embedding.shape[0]))
         
-        return users_walk_tab, users_walk_tab_new, ranking_position_tab
+        return user_jumper_tab, user_jumper_tab_new, ranking_position_tab
     
     
     
 ####### Helpers for axis projection 
 
+'''
+Retrieve the embedding of size (channels, _n_comp), select the channels in selected_channels and create a DataFrame from it.
+graph_matrix: SHAPE: (channels, n_comp)
 
+PARAMETER:
+    - model_path: the path where the embedding is stored
+    - selected_channels: The channels indices that we have to select from the embedding
+
+RETURN: 
+    - df: DataFrame representing the channels in the embedding space
+'''
 def get_dataframe_in_embedding_space_limited_channels(file_path, selected_channels):
     df = pd.read_csv(file_path, compression='gzip').reset_index()
     df = df.loc[df['index'].isin(selected_channels)]
     return df.drop(columns=['index'])
     
 '''
-For the given ref_channel, compute it's k neirest neighbor and create pairs of channels between the found channel and ref_channel
+For the given ref_channel, compute pairs of channel between ref_channel's k neirest neighbor and ref_channel.
 
 PARAMETERS:
-    - channels_pairs: table representing the pair of channel already computed
-    - ref_channel: the channel on which we compute the neirest neighbor search
-    - index: the annoy index to do the k nearest neighbor search
-    - k: the number of neighbors 
-
+    - channels_pairs: List of tuple representing the pair of channels already computed,
+    - ref_channel: the channel on which we compute the neirest neighbor search,
+    - index: the annoy index to do the nearest neighbor search,
+    - k: the number of neighbors to be computed
 '''
 def create_pairs(channels_pairs, ref_channel, index, k):
     nearest_neighbors = index.get_nns_by_item(ref_channel, k)
@@ -174,9 +220,10 @@ Generate the set of all pairs of channels with their k neirest neighbors
 PARAMETERS:
     - df_embedding: DataFrame representing the channel embedding
     - k: the parameter of the nearest neighbor search
-    - n_comp: the number of components after applying the dimensionality reduction
+    - n_comp: the number of components of the embedding (number of columns of the embedding)
+    - seed: the seed pair
 RETURN:
-    - list of channels tuple 
+    - DataFrame representing all the channels - nearest neighbors pairs 
 '''
 def channels_with_neighbors_pairs(df_embedding, k, n_comp, seed):
     channels_pairs = []
@@ -189,15 +236,19 @@ def channels_with_neighbors_pairs(df_embedding, k, n_comp, seed):
 
 
 '''
-Creates the axis vector representing the desired cultural concept which is based on the seed pair.
+Create the pairs of channel - nearest neighbors for each channel.
+Then compute and sort the pairs according to their cosine similarity scores.
 
 PARAMETERS:
-    - path: the path where the reducted matrix is saved
-    - k: the number of neirest neighbor
-    - seed: the seed pair representing the base of the axis
-    - nb_selected_pairs: number of selected pairs to create the axis
+    - path: the path where the embedding is stored,
+    - k: the number of neirest neighbor search,
+    - seed: the selected seed pair,
+    - nb_selected_pairs: number of selected pairs to create the axis,
+    - selected_channels: the subset of channels if we want to work on a subset of the channels,
+    - channel_crawler: DataFrame having the name - channel mapping,
+    - dict_ind_channel: mapping from channels indices to channels id
 RETURN:
-    - All the channels pairs ranked by the cosine similarity metric (from higher to lower)
+    - Call cultural_concept_vector function in order to compute the final axis vector.
 '''
 
 def compute_axis_vector_based_on_seed(path, k, seed, nb_selected_pairs, selected_channels, channel_crawler, dict_ind_channel):
@@ -218,30 +269,26 @@ def compute_axis_vector_based_on_seed(path, k, seed, nb_selected_pairs, selected
     # compute cosine similarity score
     similarity_score = cosine_similarity(vector_diff_channels_pairs, vector_diff_seed.reshape(1, -1))
     channels_pairs['similarity'] = similarity_score
+    # Sort the similrity scores
     channels_pairs = channels_pairs.sort_values(by = ['similarity'], ascending = False)
-    
-    # Sort the similarity_score in decreasing order
-    #dict_channel_similarity = {}
-    #for ind in range(len(channels_pairs)):
-    #    dict_channel_similarity[channels_pairs[ind]] = similarity_score[ind]
-    #sorted_similarity_score = sorted(dict_channel_similarity.keys(), key=dict_channel_similarity.get, reverse = True)
     
     return cultural_concept_vector(df_embedding, channels_pairs, vector_diff_seed, nb_selected_pairs, seed, channel_crawler, dict_ind_channel)
 
 
 '''
-The nb_selected_pairs-1 pairs are selected based on the cosine similarity score to end up with nb_pairs_selected 
-pairs to create the axis (with the original seed pair).
-To create the axis, the vector difference of all nb_pairs_selected are averaged together to obtain a single vector 
+Creates the axis vector representing the desired cultural concept based on the seed pair. To create the axis, the vector difference of all nb_pairs_selected are averaged together to obtain a single vector 
 for the axis that robustly represents the desired cultural concept.
 
 PARAMETERS:
     - df_embedding: DataFrame representing the channel embedding
-    - sorted_similarity_score: list of channel pairs ordered by their cosine similarity score
+    - sorted_similarity_score: dataframe of channel pairs ordered by their cosine similarity score
     - vector_diff_seed: vector difference between the seed pair
     - nb_selected_pairs: number of selected pairs to create the axis
+    - seed: the seed pair
+    - channel_crawler: Pandas DataFrame having the name - channel mapping
+    - dict_ind_channel: mapping from channels indices to channels id
 RETURN:
-    - Vector for the axis that represents the desired cultural concept
+    - Axis vector (of dimension = # columns of the embedding) that represents the desired cultural concept
 '''
 
 def cultural_concept_vector(df_embedding, sorted_similarity_score, vector_diff_seed, nb_selected_pairs, seed, channel_crawler, dict_ind_channel):
@@ -254,11 +301,11 @@ def cultural_concept_vector(df_embedding, sorted_similarity_score, vector_diff_s
     count_selected_pairs = 0 # Counter to keep track of how many pairs we have selected so far
     idx = 0 # Indice counter
     channels_already_taken = [seed[0], seed[1]]
-    while count_selected_pairs <= nb_selected_pairs:
+    while count_selected_pairs < nb_selected_pairs:
         pair = sorted_similarity_score.iloc[idx]
         
         # We don't want channels to be selected multiple times
-        if not(pair[0] in channels_already_taken or pair[1] in channels_already_taken):
+        if not(pair[0] in channels_already_taken or pair[1] in channels_already_taken) and pair[0] != pair[1]:
             df_output = df_output.append(channel_crawler[channel_crawler['channel'] == dict_ind_channel[pair[0]]])
             df_output = df_output.append(channel_crawler[channel_crawler['channel'] == dict_ind_channel[pair[1]]])
             
@@ -279,8 +326,19 @@ def cultural_concept_vector(df_embedding, sorted_similarity_score, vector_diff_s
     
     return cultural_concept_vectors.mean(axis = 0), df_output
 
+
 ##### Useful functions for plotting the embedding
 
+'''
+Generate the mapping between the name of the channel and the indice of the channel
+
+PARAMETERS:
+    - channelcrawler: Pandas DataFrame having the name - channel mapping
+    - dict_ind_channel: dictionary mapping the channels indices to the channels id
+RETURN:
+    - dict_idx_name: dictionary mapping the channels indices to the channels names
+    - dict_name_idx: dictionary mapping the channels names to the channels indices
+'''
 def channel_to_name(channelcrawler, dict_channel_ind):
     dict_channel_name = {}
     
