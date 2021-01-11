@@ -110,7 +110,7 @@ def get_random_walk_new(df_embedding):
     random_walk_distance = 0
     for val in random_walk_channels:
         random_walk_distance += distance.euclidean(df_embedding.iloc[val[0]], df_embedding.iloc[val[1]])
-    return random_walk_distance
+    return random_walk_distance / len(random_walk_channels)
 
 
 
@@ -151,13 +151,13 @@ RETURN:
 '''
 def get_user_walk_and_position_ratio(files, channels_tuple, embedding_type = 'pytorch'):
 
+    len_random_set = len(channels_tuple)
+    
     user_jumper_tab = []
     user_jumper_tab_new = []
     ranking_position_tab = []
 
-    len_random_set = len(channels_tuple)
-
-    for file in files: 
+    for file in files:     
         print('file ', file)                  
         df_embedding = get_dataframe_in_embedding_space(file, embedding_type)     
         n_comp = df_embedding.shape[1]
@@ -168,14 +168,19 @@ def get_user_walk_and_position_ratio(files, channels_tuple, embedding_type = 'py
         users_walk = 0
         ranking_position = 0
         
-        for ref_channel, second_channel in channels_tuple:
+        user_jumper_tab = np.zeros(len_random_set)
+        ranking_position_tab = np.zeros(len_random_set)
+        
+        for ind, channel in enumerate(channels_tuple):
+            ref_channel = channel[0]
+            second_channel = channel[1]
             # For every pair sum the users_walk and the ranking_position results
             users_walk += distance.euclidean(df_embedding.iloc[ref_channel], df_embedding.iloc[second_channel])
             ranking_position += get_ranking_position_between_channels(ref_channel, second_channel, index, df_embedding)
 
-        user_jumper_tab.append(users_walk/random_walk_distance)
-        user_jumper_tab_new.append(users_walk/random_walk_distance_new)
-        ranking_position_tab.append(ranking_position/(len_random_set*df_embedding.shape[0]))
+        user_jumper_tab.append(users_walk / random_walk_distance)
+        user_jumper_tab_new.append(users_walk / random_walk_distance_new)
+        ranking_position_tab.append(ranking_position / (df_embedding.shape[0]*len_random_set))
         
         return user_jumper_tab, user_jumper_tab_new, ranking_position_tab
     
