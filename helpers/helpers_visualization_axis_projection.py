@@ -2,10 +2,28 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
+'''
+Compute the projection score for each channel
+
+PARAMETER:
+    - axis_vector: Vector representing the axis.
+    - channel_vector: Vector representing the channel
+RETURN:
+    - The projection score
+'''
 def compute_projection(axis_vector, channel_vector):
     return np.dot(axis_vector, channel_vector)
 
-def visualization(df_gender_projection, seed_name, color, nb_for_color, title):
+'''
+Enable to plot and save the distribution of the scores stored in df_gender_projection
+
+PARAMETER:
+    - df_gender_projection: DataFrame (name of the channel, score)
+    - seed_name: pair corresponding to the name of the seed
+    - color: String correponding to the Colormaps color
+
+'''
+def visualization(df_gender_projection, seed_name, color, nb_for_color, title, save_path = None):
     fig, ax = plt.subplots(figsize=(10, 6))
 
     # Plotting a histogram of the scores with 30 equal-witdh bins
@@ -32,6 +50,8 @@ def visualization(df_gender_projection, seed_name, color, nb_for_color, title):
 
     ax.legend()
     ax.set_title(title)
+    if save_path != None:
+        plt.savefig(save_path)
     plt.show()
     
     
@@ -42,7 +62,7 @@ def create_projection(EMBEDDING, axis_vector, dict_idx_name):
 
 
 
-def create_plot(df_left, df_right, selected_pairs, title, size, cm, resize = 1):
+def create_plot(df_left, df_right, selected_pairs, title, size, cm, resize = 1, save_path = None):
     fig, ax = plt.subplots(figsize = size)
     ax.axis('off')
     X = np.arange(selected_pairs)
@@ -56,6 +76,7 @@ def create_plot(df_left, df_right, selected_pairs, title, size, cm, resize = 1):
     ax.barh(X, np.array(df_left['projection'])*resize, color = cm(10))
     ax.barh(X, np.array(df_right['projection'])*resize, color = cm(300))
     ax.set_title(title)
-    
+    if save_path != None:
+        plt.savefig(save_path)
     plt.show()
     

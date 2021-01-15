@@ -1,5 +1,6 @@
 import pickle
 import os
+import sys
 
 import numpy as np
 import pandas as pd
@@ -7,6 +8,10 @@ import pandas as pd
 from annoy import AnnoyIndex
 from scipy.spatial import distance
 from sklearn.metrics.pairwise import cosine_similarity
+
+scriptpath = "/home/jouven/youtube_projects"
+sys.path.append(os.path.abspath(scriptpath))
+from helpers.config_threshold_value import *
 
 '''
 Retrieve the embedding of size (channels, _n_comp) and create a DataFrame from it.
@@ -30,7 +35,7 @@ def get_dataframe_in_embedding_space(model_path, embedding_type = 'pytorch'):
         df = df.sort_values(by=['index'])
         return df.set_index('index')
     else:
-        graph_matrix = np.load(file_path)
+        graph_matrix = np.load(model_path)
         graph_matrix = graph_matrix['arr_0']
         df = pd.DataFrame(graph_matrix)
         df = df.rename(lambda x: 'dr'+str(x), axis='columns')
@@ -85,7 +90,7 @@ RETURN:
     - random_walk_distance: The distance of the random walk
 '''
 def get_random_walk(df_embedding):
-    with open("/dlabdata1/youtube_large/jouven/channels_more_300/channels_tuple_random_walk.pkl",'rb') as f:
+    with open(os.path.join(COMMON_PATH, "channels_tuple_random_walk.pkl"),'rb') as f:
          random_walk_channels = pickle.load(f)
     f.close()
     random_walk_distance = 0
@@ -104,7 +109,7 @@ RETURN:
     - random_walk_distance: The distance of the random walk
 '''
 def get_random_walk_new(df_embedding):
-    with open("/dlabdata1/youtube_large/jouven/channels_more_300/channels_tuple_random_walk_modified.pkl",'rb') as f:
+    with open(os.path.join(COMMON_PATH, "channels_tuple_random_walk_modified.pkl"),'rb') as f:
          random_walk_channels = pickle.load(f)
     f.close()
     random_walk_distance = 0
@@ -145,7 +150,6 @@ PARAMETER:
 
 RETURN: 
     - user_jumper_tab: List of Jumper ratio corresponding the embedding contained in files
-    - user_jumper_tab_new: List of Jumper ratio (Modified version) corresponding the embedding contained in files
     - ranking_position_tab: List of Position ratio corresponding the embedding contained in files
 
 '''
@@ -154,7 +158,6 @@ def get_user_walk_and_position_ratio(files, channels_tuple, embedding_type = 'py
     len_random_set = len(channels_tuple)
     
     user_jumper_tab = []
-    user_jumper_tab_new = []
     ranking_position_tab = []
 
     for file in files:     
@@ -163,13 +166,9 @@ def get_user_walk_and_position_ratio(files, channels_tuple, embedding_type = 'py
         n_comp = df_embedding.shape[1]
         print('n_comp ', n_comp)
         random_walk_distance = get_random_walk(df_embedding)
-        random_walk_distance_new = get_random_walk_new(df_embedding)
         index = get_annoy_index(df_embedding)
         users_walk = 0
         ranking_position = 0
-        
-        user_jumper_tab = np.zeros(len_random_set)
-        ranking_position_tab = np.zeros(len_random_set)
         
         for ind, channel in enumerate(channels_tuple):
             ref_channel = channel[0]
@@ -179,10 +178,9 @@ def get_user_walk_and_position_ratio(files, channels_tuple, embedding_type = 'py
             ranking_position += get_ranking_position_between_channels(ref_channel, second_channel, index, df_embedding)
 
         user_jumper_tab.append(users_walk / random_walk_distance)
-        user_jumper_tab_new.append(users_walk / random_walk_distance_new)
         ranking_position_tab.append(ranking_position / (df_embedding.shape[0]*len_random_set))
         
-        return user_jumper_tab, user_jumper_tab_new, ranking_position_tab
+        return user_jumper_tab, ranking_position_tab
     
     
     
@@ -306,7 +304,7 @@ def cultural_concept_vector(df_embedding, sorted_similarity_score, vector_diff_s
     count_selected_pairs = 0 # Counter to keep track of how many pairs we have selected so far
     idx = 0 # Indice counter
     channels_already_taken = [seed[0], seed[1]]
-    while count_selected_pairs < nb_selected_pairs:
+    while count_selected_pairs < nb_selected_pairs-1:
         pair = sorted_similarity_score.iloc[idx]
         
         # We don't want channels to be selected multiple times
@@ -320,7 +318,7 @@ def cultural_concept_vector(df_embedding, sorted_similarity_score, vector_diff_s
             channels_already_taken.append(pair[1])
             count_selected_pairs += 1
         idx += 1
-    with open("/dlabdata1/youtube_large/jouven/channels_more_300/embedding_pairs.pkl",'wb') as f:
+    with open(os.path.join(COMMON_PATH, "embedding_pairs.pkl"),'rb') as f:
         extended = pickle.dump(channels_already_taken, f)
     f.close()
     cultural_concept_vectors = [vector_diff_seed] # Vectors of the difference of the selected pairs
