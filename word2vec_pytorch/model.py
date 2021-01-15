@@ -7,6 +7,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 #import torch.optim as optim
 
+'''
+Standard word2vec model using Negative Sampling
+The function uses PyTorch to construct the model
+'''
 class Word2Vec_neg_sampling(nn.Module):
 
     def __init__(self, embedding_size, vocab_size, device, noise_dist = None, negative_samples = 10):
